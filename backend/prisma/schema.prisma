@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                   String   @id @default(uuid())
+  name                 String
+  email                String   @unique
+  password             String
+  phone                String   @unique
+  licenseNumber        String?
+  kycVideoUrl          String?
+  bankAccount          String?
+  upiId                String?
+  emergencyContactName String?
+  emergencyContactPhone String?
+  isVerified           Boolean  @default(false)
+  rides                Ride[]   @relation("RiderRides")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
+}
+
+model Driver {
+  id                   String   @id @default(uuid())
+  name                 String
+  email                String   @unique
+  password             String
+  phone                String   @unique
+  vehicleNumber        String   @unique
+  licenseNumber        String?
+  kycVideoUrl          String?
+  bankAccount          String?
+  upiId                String?
+  emergencyContactName String?
+  emergencyContactPhone String?
+  isOnline             Boolean  @default(false)
+  isVerified           Boolean  @default(false)
+  currentLat           Float?
+  currentLng           Float?
+  socketId             String?
+  rating               Float    @default(5.0)
+  totalRides           Int      @default(0)
+  walletBalance        Float    @default(0.0)
+  rides                Ride[]   @relation("DriverRides")
+  payouts              PayoutRequest[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Ride {
+  id                 String     @id @default(uuid())
+  rider              User       @relation("RiderRides", fields: [riderId], references: [id])
+  riderId            String
+  driver             Driver?    @relation("DriverRides", fields: [driverId], references: [id])
+  driverId           String?
+  pickupLocation     String
+  dropLocation       String
+  pickupLat          Float
+  pickupLng          Float
+  dropLat            Float
+  dropLng            Float
+  fare               Float
+  commission         Float      @default(0.0)
+  netEarning         Float      @default(0.0)
+  status             RideStatus @default(SEARCHING)
+  cancelledBy        String?
+  cancellationReason String?
+  cancelledAt        DateTime?
+  emergencyRaised    Boolean    @default(false)
+  emergencyMessage   String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+}
+
+enum RideStatus {
+  SEARCHING
+  ACCEPTED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+model AppConfig {
+  id           String @id @default(uuid())
+  baseFare     Float  @default(20)
+  perKmRate    Float  @default(8)
+  commission   Float  @default(0.2)
+}
+
+model SupportTicket {
+  id         String   @id @default(uuid())
+  userId     String
+  userName   String
+  userRole   String   // RIDER or DRIVER
+  rideId     String?
+  ticketType String   @default("GENERAL") // GENERAL, EMERGENCY
+  priority   String   @default("NORMAL") // NORMAL, HIGH, CRITICAL
+  subject    String
+  message    String
+  status     String   @default("OPEN") // OPEN, RESOLVED
+  resolvedAt DateTime?
+  createdAt  DateTime @default(now())
+}
+
+model PayoutRequest {
+  id        String   @id @default(uuid())
+  driver    Driver   @relation(fields: [driverId], references: [id])
+  driverId  String
+  amount    Float
+  upiId     String?
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt DateTime @default(now())
+}
