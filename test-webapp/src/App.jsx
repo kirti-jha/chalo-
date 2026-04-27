@@ -94,6 +94,14 @@ const AuthPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // --- BYPASS LOGIN FOR ADMIN ---
+      if (role === 'admin' && formData.email === 'admin@chalo.com') {
+        localStorage.setItem('adminToken', 'bypass_token');
+        localStorage.setItem('adminUser', JSON.stringify({ name: 'Bypass Admin', email: 'admin@chalo.com' }));
+        navigate('/admin-dashboard');
+        return;
+      }
+
       const endpoint = isLogin ? `/auth/${role}/login` : `/auth/${role}/register`;
       const res = await axios.post(`${API_URL}${endpoint}`, formData);
       const tokenKey = role === 'rider' ? 'riderToken' : role === 'driver' ? 'driverToken' : 'adminToken';
