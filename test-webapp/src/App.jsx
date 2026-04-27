@@ -21,8 +21,8 @@ document.head.appendChild(style);
 
 import { Toaster, toast } from 'react-hot-toast';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
 const getAuthHeaders = (token) => ({ headers: { Authorization: `Bearer ${token}` } });
 
@@ -37,7 +37,7 @@ const LandingPage = () => (
 
     <div className="glass-card">
       <div className="hero-text">
-        <h1>Chalo.</h1>
+        <h1>Chalo App</h1>
         <p style={{fontSize:'1.4rem', opacity:0.9, marginBottom:'2rem', maxWidth:'500px'}}>
           India's most trusted bike-taxi platform. Faster than traffic, cheaper than cars, and now more premium.
         </p>
