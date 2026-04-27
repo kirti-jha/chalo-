@@ -21,8 +21,8 @@ document.head.appendChild(style);
 
 import { Toaster, toast } from 'react-hot-toast';
 
-const API_URL = 'http://localhost:5000/api';
-const SOCKET_URL = 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
 const getAuthHeaders = (token) => ({ headers: { Authorization: `Bearer ${token}` } });
 
