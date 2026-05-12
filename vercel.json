@@ -17,8 +17,11 @@
       "dest": "api/index.ts"
     },
     {
+      "handle": "filesystem"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/test-webapp/$1"
+      "dest": "/test-webapp/index.html"
     }
   ]
 }
