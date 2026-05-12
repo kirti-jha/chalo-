@@ -2,14 +2,14 @@ import express from 'express';
 import http from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import socketService from './services/socket.service';
-import authRoutes from './routes/auth.routes';
-import rideRoutes from './routes/ride.routes';
-import driverRoutes from './routes/driver.routes';
-import adminRoutes from './routes/admin.routes';
-import supportRoutes from './routes/support.routes';
-import payoutRoutes from './routes/payout.routes';
-import profileRoutes from './routes/profile.routes';
+import socketService from './services/socket.service.js';
+import authRoutes from './routes/auth.routes.js';
+import rideRoutes from './routes/ride.routes.js';
+import driverRoutes from './routes/driver.routes.js';
+import adminRoutes from './routes/admin.routes.js';
+import supportRoutes from './routes/support.routes.js';
+import payoutRoutes from './routes/payout.routes.js';
+import profileRoutes from './routes/profile.routes.js';
 
 dotenv.config();
 

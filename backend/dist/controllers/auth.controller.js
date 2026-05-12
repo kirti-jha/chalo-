@@ -1,8 +1,8 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import prisma from '../config/prisma';
-import { withoutPassword } from '../utils/serializers';
+import prisma from '../config/prisma.js';
+import { withoutPassword } from '../utils/serializers.js';
 const DEMO_PASSWORD_HASH = '$2b$10$Jxv6U8fkKcM9M9nM1A2rMeczN0nzzakDx4zY/boYYGr2susx6bwyK';
 const toDemoKey = (value) => value
     .trim()

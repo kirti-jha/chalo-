@@ -1,7 +1,7 @@
-import prisma from '../config/prisma';
+import prisma from '../config/prisma.js';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { withoutPassword } from '../utils/serializers';
+import { withoutPassword } from '../utils/serializers.js';
 const profileSchema = z.object({
     name: z.string().trim().min(2).optional(),
     phone: z.string().trim().min(10).optional(),

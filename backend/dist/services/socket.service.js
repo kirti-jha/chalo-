@@ -1,5 +1,5 @@
 import { Server } from 'socket.io';
-import prisma from '../config/prisma';
+import prisma from '../config/prisma.js';
 class SocketService {
     io = null;
     userSockets = new Map(); // userId -> socketId

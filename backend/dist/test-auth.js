@@ -1,4 +1,4 @@
-import prisma from './config/prisma';
+import prisma from './config/prisma.js';
 import bcrypt from 'bcrypt';
 async function test() {
     const email = 'admin@chalo.com';

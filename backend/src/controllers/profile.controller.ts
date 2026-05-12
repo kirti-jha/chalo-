@@ -1,9 +1,9 @@
 import { Response } from 'express';
-import { AuthRequest } from '../middlewares/auth.middleware';
-import prisma from '../config/prisma';
+import { AuthRequest } from '../middlewares/auth.middleware.js';
+import prisma from '../config/prisma.js';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { withoutPassword } from '../utils/serializers';
+import { withoutPassword } from '../utils/serializers.js';
 
 const profileSchema = z.object({
   name: z.string().trim().min(2).optional(),

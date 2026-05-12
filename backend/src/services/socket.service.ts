@@ -1,5 +1,5 @@
 import { Server, Socket } from 'socket.io';
-import prisma from '../config/prisma';
+import prisma from '../config/prisma.js';
 
 class SocketService {
   private io: Server | null = null;

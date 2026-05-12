@@ -1,8 +1,8 @@
 import { Response } from 'express';
-import { AuthRequest } from '../middlewares/auth.middleware';
-import prisma from '../config/prisma';
+import { AuthRequest } from '../middlewares/auth.middleware.js';
+import prisma from '../config/prisma.js';
 
-import socketService from '../services/socket.service';
+import socketService from '../services/socket.service.js';
 
 export const toggleOnlineStatus = async (req: AuthRequest, res: Response) => {
   if (req.user?.role !== 'DRIVER') {

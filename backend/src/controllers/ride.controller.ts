@@ -1,9 +1,9 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import { AuthRequest } from '../middlewares/auth.middleware';
-import prisma from '../config/prisma';
-import socketService from '../services/socket.service';
-import { FareService } from '../services/fare.service';
+import { AuthRequest } from '../middlewares/auth.middleware.js';
+import prisma from '../config/prisma.js';
+import socketService from '../services/socket.service.js';
+import { FareService } from '../services/fare.service.js';
 
 const createRideSchema = z.object({
   pickupLocation: z.string().trim().min(3),

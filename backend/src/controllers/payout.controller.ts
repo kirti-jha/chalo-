@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { AuthRequest } from '../middlewares/auth.middleware';
-import prisma from '../config/prisma';
+import { AuthRequest } from '../middlewares/auth.middleware.js';
+import prisma from '../config/prisma.js';
 
 const payoutSchema = z.object({
   amount: z.number().positive(),

@@ -1,5 +1,5 @@
-import prisma from '../config/prisma';
-import socketService from '../services/socket.service';
+import prisma from '../config/prisma.js';
+import socketService from '../services/socket.service.js';
 export const toggleOnlineStatus = async (req, res) => {
     if (req.user?.role !== 'DRIVER') {
         return res.status(403).json({ message: 'Only drivers can change online status' });

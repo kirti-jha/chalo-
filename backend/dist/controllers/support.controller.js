@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import prisma from '../config/prisma';
+import prisma from '../config/prisma.js';
 const ticketSchema = z.object({
     subject: z.string().trim().min(3),
     message: z.string().trim().min(10),

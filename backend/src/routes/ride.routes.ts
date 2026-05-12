@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { createRide, acceptRide, updateRideStatus, cancelRide, raiseSos, getRideHistory, rateDriver } from '../controllers/ride.controller';
-import { authenticate } from '../middlewares/auth.middleware';
+import { createRide, acceptRide, updateRideStatus, cancelRide, raiseSos, getRideHistory, rateDriver } from '../controllers/ride.controller.js';
+import { authenticate } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
