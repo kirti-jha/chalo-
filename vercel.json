@@ -21,7 +21,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/test-webapp/index.html"
+      "dest": "/index.html"
     }
   ]
 }
