@@ -19,6 +19,7 @@ const buildDemoIdentity = (value) => {
         name: rawValue || 'Demo User',
     };
 };
+const getErrorMessage = (error) => error instanceof Error ? error.message : 'Unexpected server error';
 const riderRegisterSchema = z.object({
     name: z.string().trim().min(2),
     email: z.email().trim().toLowerCase(),
@@ -54,7 +55,7 @@ export const registerRider = async (req, res) => {
         res.status(201).json({ user: withoutPassword(user), token });
     }
     catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: getErrorMessage(error) });
     }
 };
 export const loginRider = async (req, res) => {
@@ -78,7 +79,7 @@ export const loginRider = async (req, res) => {
         res.json({ user: withoutPassword(user), token });
     }
     catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: getErrorMessage(error) });
     }
 };
 export const registerDriver = async (req, res) => {
@@ -92,7 +93,7 @@ export const registerDriver = async (req, res) => {
         res.status(201).json({ driver: withoutPassword(driver), token });
     }
     catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: getErrorMessage(error) });
     }
 };
 export const loginDriver = async (req, res) => {
@@ -117,7 +118,7 @@ export const loginDriver = async (req, res) => {
         res.json({ driver: withoutPassword(driver), token });
     }
     catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: getErrorMessage(error) });
     }
 };
 export const loginAdmin = async (req, res) => {
@@ -138,7 +139,7 @@ export const loginAdmin = async (req, res) => {
         res.json({ admin: withoutPassword(admin), token });
     }
     catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: getErrorMessage(error) });
     }
 };
 export const registerAdmin = async (req, res) => {
@@ -152,6 +153,6 @@ export const registerAdmin = async (req, res) => {
         res.status(201).json({ admin: withoutPassword(admin), token });
     }
     catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: getErrorMessage(error) });
     }
 };

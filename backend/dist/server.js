@@ -13,10 +13,13 @@ import profileRoutes from './routes/profile.routes';
 dotenv.config();
 const app = express();
 const server = http.createServer(app);
+const isServerless = Boolean(process.env.VERCEL);
 app.use(cors());
 app.use(express.json());
-// Initialize Socket.IO
-socketService.init(server);
+if (!isServerless) {
+    // Socket.IO needs a long-lived server, so keep it out of the Vercel function path.
+    socketService.init(server);
+}
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/rides', rideRoutes);
@@ -29,7 +32,7 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK' });
 });
 const PORT = process.env.PORT || 5000;
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+if (!isServerless) {
     server.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
     });
