@@ -34,11 +34,25 @@ class SocketService {
         // Update driver location in DB
         await prisma.driver.update({
           where: { id: data.driverId },
-          data: {
-            currentLat: data.lat,
-            currentLng: data.lng,
-          },
+          data: { currentLat: data.lat, currentLng: data.lng },
         });
+
+        // Find active ride for this driver to notify rider
+        const activeRide = await prisma.ride.findFirst({
+          where: {
+            driverId: data.driverId,
+            status: { in: ['ACCEPTED', 'ONGOING'] }
+          },
+          select: { riderId: true }
+        });
+
+        if (activeRide) {
+          this.emitToUser(activeRide.riderId, 'driverLocationUpdate', {
+            lat: data.lat,
+            lng: data.lng
+          });
+        }
+
         console.log(`Driver ${data.driverId} location updated: ${data.lat}, ${data.lng}`);
       });
 

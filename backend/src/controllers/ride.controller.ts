@@ -4,6 +4,7 @@ import { AuthRequest } from '../middlewares/auth.middleware.js';
 import prisma from '../config/prisma.js';
 import socketService from '../services/socket.service.js';
 import { FareService } from '../services/fare.service.js';
+import { getDistance } from '../utils/geo.js';
 
 const createRideSchema = z.object({
   pickupLocation: z.string().trim().min(3),
@@ -21,6 +22,7 @@ const acceptRideSchema = z.object({
 const updateRideStatusSchema = z.object({
   rideId: z.string().uuid(),
   status: z.enum(['ACCEPTED', 'ONGOING', 'COMPLETED', 'CANCELLED']),
+  otp: z.string().optional(),
 });
 
 const cancelRideSchema = z.object({
@@ -60,6 +62,7 @@ export const createRide = async (req: AuthRequest, res: Response) => {
         dropLng,
         fare,
         status: 'SEARCHING',
+        otp: Math.floor(1000 + Math.random() * 9000).toString(),
       },
     });
 
@@ -68,11 +71,19 @@ export const createRide = async (req: AuthRequest, res: Response) => {
       where: {
         isOnline: true,
         isVerified: true,
+        currentLat: { not: null },
+        currentLng: { not: null },
       },
     });
 
-    // Emit request to all nearby drivers
-    drivers.forEach((driver: any) => {
+    const nearbyDrivers = drivers.filter(driver => {
+      if (!driver.currentLat || !driver.currentLng) return false;
+      const distance = getDistance(pickupLat, pickupLng, driver.currentLat, driver.currentLng);
+      return distance <= 5; // 5km radius
+    });
+
+    // Emit request to nearby drivers
+    nearbyDrivers.forEach((driver: any) => {
       socketService.emitToDriver(driver.id, 'newRideRequest', ride);
     });
 
@@ -161,10 +172,20 @@ export const updateRideStatus = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: `Cannot move ride from ${ride.status} to ${status}` });
     }
 
-    // 2. Perform update
+    // 2. Perform update with OTP verification for ONGOING
+    if (status === 'ONGOING') {
+      const { otp } = updateRideStatusSchema.parse(req.body);
+      if (!otp || ride.otp !== otp) {
+        return res.status(400).json({ message: 'Invalid OTP' });
+      }
+    }
+
     const updatedRide = await prisma.ride.update({
       where: { id: rideId },
-      data: { status },
+      data: { 
+        status,
+        otpVerified: status === 'ONGOING' ? true : ride.otpVerified
+      },
     });
 
     // 3. Handle stats and wallet update on completion

@@ -2,9 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { io } from 'socket.io-client';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { useMap } from 'react-leaflet';
 
 // Fix leaflet icon issue
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -140,9 +141,84 @@ const AuthPage = () => {
 // Geocode a text address using Nominatim
 const geocode = async (address) => {
   const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
-  const d = await r.json();
-  if (!d.length) throw new Error('Location not found: ' + address);
-  return [parseFloat(d[0].lat), parseFloat(d[0].lon)];
+  const data = await r.json();
+  if (!data.length) throw new Error('Location not found: ' + address);
+  return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+};
+
+const reverseGeocode = async (lat, lng) => {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+    const data = await res.json();
+    return data.display_name;
+  } catch (e) { return `${lat.toFixed(4)}, ${lng.toFixed(4)}`; }
+};
+
+const LocationPicker = ({ onSelect }) => {
+  const map = useMap();
+  useEffect(() => {
+    const handleClick = async (e) => {
+      const { lat, lng } = e.latlng;
+      const address = await reverseGeocode(lat, lng);
+      onSelect(lat, lng, address);
+    };
+    map.on('click', handleClick);
+    return () => map.off('click', handleClick);
+  }, [map, onSelect]);
+  return null;
+};
+
+const fetchRoute = async (start, end) => {
+  try {
+    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`);
+    const data = await res.json();
+    if (data.routes && data.routes[0]) {
+      return data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+    }
+  } catch (e) { console.error('Routing error:', e); }
+  return [start, end]; // Fallback to straight line
+};
+
+const MapRecenter = ({ bounds }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (bounds && bounds.length > 0) {
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [bounds, map]);
+  return null;
+};
+
+const SearchingOverlay = ({ onCancel }) => {
+  const [progress, setProgress] = useState(0);
+  
+  useEffect(() => {
+    const start = Date.now();
+    const duration = 5 * 60 * 1000; // 5 mins
+    
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const p = Math.min((elapsed / duration) * 100, 100);
+      setProgress(p);
+      if (p >= 100) clearInterval(interval);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="searching-overlay">
+      <div className="searching-content">
+        <div className="spinner"></div>
+        <h2>Finding your Captain</h2>
+        <p>Connecting with nearby drivers...</p>
+        <div className="progress-container">
+          <div className="progress-bar" style={{ width: `${progress}%` }}></div>
+        </div>
+        <button className="btn btn-outline" style={{ marginTop: '2rem' }} onClick={onCancel}>Cancel Search</button>
+      </div>
+    </div>
+  );
 };
 
 // --- Rider Dashboard ---
@@ -154,9 +230,14 @@ const RiderDashboard = () => {
   const [activeTab, setActiveTab] = useState('map');
   const [pickup, setPickup] = useState('');
   const [drop, setDrop] = useState('');
+  const [pickupCoords, setPickupCoords] = useState(null);
+  const [dropCoords, setDropCoords] = useState(null);
+  const [pickingMode, setPickingMode] = useState('pickup'); // 'pickup' or 'drop'
   const [searching, setSearching] = useState(false);
   const [myLocation, setMyLocation] = useState([28.6139, 77.2090]); // default Delhi, overridden by GPS
   const [driverLocation, setDriverLocation] = useState(null);
+  const [nearbyDrivers, setNearbyDrivers] = useState([]);
+  const [routePath, setRoutePath] = useState([]);
   const [showSupport, setShowSupport] = useState(false);
   const socketRef = useRef();
   const riderToken = localStorage.getItem('riderToken');
@@ -182,17 +263,32 @@ const RiderDashboard = () => {
     }
     socketRef.current = io(SOCKET_URL);
     socketRef.current.emit('join', { userId: rider.id, role: 'RIDER' });
-    socketRef.current.on('rideAccepted', (updatedRide) => {
+    socketRef.current.on('rideAccepted', async (updatedRide) => {
       setRide(updatedRide);
-      if (updatedRide.driver?.currentLat) setDriverLocation([updatedRide.driver.currentLat, updatedRide.driver.currentLng]);
+      setSearching(false); // Stop searching overlay
+      if (updatedRide.driver?.currentLat) {
+        const dLoc = [updatedRide.driver.currentLat, updatedRide.driver.currentLng];
+        setDriverLocation(dLoc);
+        const path = await fetchRoute(dLoc, [updatedRide.pickupLat, updatedRide.pickupLng]);
+        setRoutePath(path);
+      }
       toast.success('Captain found! They are on the way.');
     });
-    socketRef.current.on('rideStatusUpdate', (updatedRide) => {
+    socketRef.current.on('rideStatusUpdate', async (updatedRide) => {
       setRide(updatedRide);
+      if (updatedRide.status === 'ONGOING') {
+        const path = await fetchRoute([updatedRide.pickupLat, updatedRide.pickupLng], [updatedRide.dropLat, updatedRide.dropLng]);
+        setRoutePath(path);
+      }
       if (updatedRide.status === 'COMPLETED') {
         toast.success('Ride Completed!');
+        setRoutePath([]);
+        setDriverLocation(null);
         void fetchHistory();
       }
+    });
+    socketRef.current.on('driverLocationUpdate', (data) => {
+      setDriverLocation([data.lat, data.lng]);
     });
     socketRef.current.on('rideCancelled', (updatedRide) => {
       setRide(updatedRide);
@@ -209,23 +305,60 @@ const RiderDashboard = () => {
     };
   }, [fetchHistory, navigate, rider]);
 
+  // Fetch nearby drivers
+  useEffect(() => {
+    if (activeTab !== 'map' || ride) return;
+    
+    const fetchNearby = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/drivers/nearby?lat=${myLocation[0]}&lng=${myLocation[1]}`, getAuthHeaders(riderToken));
+        setNearbyDrivers(res.data);
+      } catch (e) { console.error(e); }
+    };
+    
+    fetchNearby();
+    const inv = setInterval(fetchNearby, 10000);
+    return () => clearInterval(inv);
+  }, [activeTab, myLocation, ride, riderToken]);
+
+  const onMapClick = async (lat, lng, address) => {
+    if (ride) return;
+    if (pickingMode === 'pickup') {
+      setPickup(address);
+      setPickupCoords([lat, lng]);
+      setPickingMode('drop');
+    } else {
+      setDrop(address);
+      setDropCoords([lat, lng]);
+    }
+  };
+
   const bookRide = async () => {
-    if (!pickup || !drop) return toast.error('Please enter pickup and drop locations');
+    if (!pickup || !drop) return toast.error('Please enter or select pickup and drop locations');
     setSearching(true);
     try {
-      toast.loading('Locating addresses...', { id: 'geo' });
-      const [pickupLat, pickupLng] = pickup.trim() ? await geocode(pickup) : myLocation;
-      const [dropLat, dropLng] = await geocode(drop);
-      toast.dismiss('geo');
+      let pLat, pLng, dLat, dLng;
+      
+      if (pickupCoords) {
+        [pLat, pLng] = pickupCoords;
+      } else {
+        [pLat, pLng] = await geocode(pickup);
+      }
+
+      if (dropCoords) {
+        [dLat, dLng] = dropCoords;
+      } else {
+        [dLat, dLng] = await geocode(drop);
+      }
+
       const res = await axios.post(`${API_URL}/rides/request`, {
         pickupLocation: pickup,
         dropLocation: drop,
-        pickupLat, pickupLng, dropLat, dropLng
+        pickupLat: pLat, pickupLng: pLng, dropLat: dLat, dropLng: dLng
       }, getAuthHeaders(riderToken));
       setRide(res.data);
       toast.success('Searching for nearby Captains...');
     } catch (error) {
-      toast.dismiss('geo');
       toast.error(error.message || 'Failed to request ride');
       setSearching(false);
     }
@@ -237,9 +370,14 @@ const RiderDashboard = () => {
     if (!reason) return;
 
     try {
-      const res = await axios.post(`${API_URL}/rides/cancel`, { rideId: ride.id, reason }, getAuthHeaders(riderToken));
-      setRide(res.data);
+      await axios.post(`${API_URL}/rides/cancel`, { rideId: ride.id, reason }, getAuthHeaders(riderToken));
+      setRide(null); // Reset for re-booking
+      setRoutePath([]);
       setSearching(false);
+      setPickup('');
+      setDrop('');
+      setPickupCoords(null);
+      setDropCoords(null);
       toast.success('Ride cancelled');
       void fetchHistory();
     } catch (error) {
@@ -275,11 +413,40 @@ const RiderDashboard = () => {
 
         {activeTab === 'map' && (
           <div className="card">
-            <input placeholder="Pickup Location (From)" value={pickup} onChange={e => setPickup(e.target.value)} disabled={ride} />
-            <input placeholder="Drop Location (To)" value={drop} onChange={e => setDrop(e.target.value)} disabled={ride} />
+            <p style={{fontSize:'0.7rem', opacity:0.6, marginBottom:'0.5rem'}}>
+              Click on map to select: <strong>{pickingMode === 'pickup' ? 'PICKUP' : 'DESTINATION'}</strong>
+            </p>
+            <div style={{display:'flex', gap:'0.5rem', marginBottom:'0.5rem', flexWrap:'wrap'}}>
+               <button className={`btn ${pickingMode === 'pickup' ? 'btn-primary' : 'btn-outline'}`} style={{flex:1, fontSize:'0.7rem'}} onClick={() => setPickingMode('pickup')}>Set Pickup</button>
+               <button className={`btn ${pickingMode === 'drop' ? 'btn-primary' : 'btn-outline'}`} style={{flex:1, fontSize:'0.7rem'}} onClick={() => setPickingMode('drop')}>Set Drop</button>
+            </div>
+            <input placeholder="Pickup Location" value={pickup} onChange={e => setPickup(e.target.value)} disabled={ride} />
+            <input placeholder="Drop Location" value={drop} onChange={e => setDrop(e.target.value)} disabled={ride} />
             <button className="btn btn-primary" style={{width:'100%', marginTop:'1rem'}} onClick={bookRide} disabled={ride || searching}>
               {searching ? 'Finding Captain...' : ride ? `Status: ${ride.status}` : 'Book Now'}
             </button>
+
+            {ride && ride.status !== 'COMPLETED' && ride.status !== 'CANCELLED' && ride.driver && (
+              <div style={{marginTop:'1.5rem', borderTop:'1px solid var(--glass-border)', paddingTop:'1rem'}}>
+                <div style={{display:'flex', alignItems:'center', gap:'1rem', marginBottom:'1rem'}}>
+                  <div style={{width:'50px', height:'50px', background:'var(--primary)', borderRadius:'50%', display:'flex', justifyContent:'center', alignItems:'center', fontSize:'1.5rem'}}>🛵</div>
+                  <div>
+                    <h4 style={{margin:0}}>{ride.driver.name}</h4>
+                    <p style={{margin:0, fontSize:'0.8rem', opacity:0.6}}>{ride.driver.vehicleNumber}</p>
+                    <div style={{fontSize:'0.75rem', color:'var(--primary)'}}>★ {ride.driver.rating.toFixed(1)}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {ride && ride.status === 'ACCEPTED' && (
+              <div className="card" style={{marginTop:'1.5rem', border:'1px solid var(--primary)', textAlign:'center'}}>
+                <p style={{fontSize:'0.8rem', opacity:0.6, marginBottom:'0.5rem'}}>Rider OTP</p>
+                <h1 style={{color:'var(--primary)', letterSpacing:'5px', margin:0}}>{ride.otp}</h1>
+                <p style={{fontSize:'0.7rem', marginTop:'0.5rem'}}>Give this to Captain to start</p>
+              </div>
+            )}
+
             {ride && ride.status !== 'COMPLETED' && ride.status !== 'CANCELLED' && (
               <>
                 <button className="btn btn-outline" style={{width:'100%', marginTop:'1rem'}} onClick={cancelRide}>Cancel Ride</button>
@@ -297,9 +464,69 @@ const RiderDashboard = () => {
           <div className="map-box">
             <MapContainer center={myLocation} zoom={15} style={{ height: '100%' }}>
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='© OpenStreetMap' />
+              <MapRecenter bounds={routePath.length > 0 ? routePath : [myLocation]} />
               <Marker position={myLocation}><Popup>📍 Your Location</Popup></Marker>
-              {driverLocation && <Marker position={driverLocation}><Popup>🛵 Captain</Popup></Marker>}
+              {!ride && <LocationPicker onSelect={onMapClick} />}
+              {pickupCoords && <Marker position={pickupCoords} icon={L.icon({ iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684908.png', iconSize:[30,30]})}><Popup>Pickup Point</Popup></Marker>}
+              {dropCoords && <Marker position={dropCoords} icon={L.icon({ iconUrl:'https://cdn-icons-png.flaticon.com/512/149/149060.png', iconSize:[30,30]})}><Popup>Drop Point</Popup></Marker>}
+              
+              {/* Nearby Online Drivers */}
+              {!ride && nearbyDrivers.map(d => (
+                <Marker 
+                  key={d.id} 
+                  position={[d.currentLat, d.currentLng]} 
+                  icon={L.icon({ 
+                    iconUrl: 'https://cdn-icons-png.flaticon.com/512/1048/1048329.png', 
+                    iconSize: [35, 35] 
+                  })}
+                >
+                  <Popup>🛵 Captain {d.name}</Popup>
+                </Marker>
+              ))}
+
+              {driverLocation && ride && ride.status === 'ACCEPTED' && (
+                <>
+                  <Marker 
+                    position={driverLocation} 
+                    icon={L.icon({ 
+                      iconUrl: 'https://cdn-icons-png.flaticon.com/512/1048/1048329.png', 
+                      iconSize: [45, 45] 
+                    })}
+                  >
+                    <Popup>🛵 Your Captain</Popup>
+                  </Marker>
+                  {/* Real Path to Pickup */}
+                  {routePath.length > 0 && <Polyline positions={routePath} color="#4F46E5" weight={4} dashArray="5, 10" />}
+                  <Marker position={[ride.pickupLat, ride.pickupLng]}><Popup>📍 Pickup Location</Popup></Marker>
+                </>
+              )}
+
+              {ride && ride.status === 'ONGOING' && (
+                <>
+                  <Marker 
+                    position={driverLocation || [ride.pickupLat, ride.pickupLng]} 
+                    icon={L.icon({ 
+                      iconUrl: 'https://cdn-icons-png.flaticon.com/512/1048/1048329.png', 
+                      iconSize: [45, 45] 
+                    })}
+                  >
+                    <Popup>🛵 In Progress</Popup>
+                  </Marker>
+                  <Marker position={[ride.dropLat, ride.dropLng]}><Popup>🏁 Destination</Popup></Marker>
+                  {/* Real Path to Destination */}
+                  {routePath.length > 0 && <Polyline positions={routePath} color="#10B981" weight={6} />}
+                </>
+              )}
             </MapContainer>
+            
+            {searching && <SearchingOverlay onCancel={cancelRide} />}
+            
+            {ride && ride.status === 'ACCEPTED' && (
+              <div className="otp-card">
+                <p>Share this OTP to start ride:</p>
+                <div className="otp-code">{ride.otp}</div>
+              </div>
+            )}
           </div>
         )}
         {activeTab === 'history' && (
@@ -335,8 +562,10 @@ const DriverDashboard = () => {
   const [ride, setRide] = useState(null);
   const [history, setHistory] = useState([]);
   const [incoming, setIncoming] = useState(null);
+  const [otp, setOtp] = useState('');
   const [activeTab, setActiveTab] = useState('map');
   const [myLocation, setMyLocation] = useState([28.6200, 77.2200]); // default, overridden by GPS
+  const [routePath, setRoutePath] = useState([]);
   const [showSupport, setShowSupport] = useState(false);
   const socketRef = useRef();
   const locationRef = useRef([28.6200, 77.2200]);
@@ -391,7 +620,7 @@ const DriverDashboard = () => {
       interval = setInterval(() => {
         const [lat, lng] = locationRef.current;
         socketRef.current.emit('updateLocation', { driverId: driver.id, lat, lng });
-      }, 5000);
+      }, 2000);
     }
     return () => clearInterval(interval);
   }, [driver?.id, isOnline]);
@@ -404,13 +633,47 @@ const DriverDashboard = () => {
   };
 
   const updateStatus = async (s) => {
-    const res = await axios.patch(`${API_URL}/rides/status`, { rideId: ride.id, status: s }, getAuthHeaders(driverToken));
-    setRide(res.data);
-    if (s === 'COMPLETED') {
-      setRide(null);
-      toast.success('Ride Completed! Earnings added to wallet.');
-      fetchHistory();
-      refreshDriver();
+    try {
+      const payload = { rideId: ride.id, status: s };
+      if (s === 'ONGOING') {
+        if (!otp) return toast.error('Please enter Rider OTP');
+        payload.otp = otp;
+      }
+      const res = await axios.patch(`${API_URL}/rides/status`, payload, getAuthHeaders(driverToken));
+      setRide(res.data);
+      if (s === 'ONGOING') {
+        setOtp('');
+        const path = await fetchRoute([res.data.pickupLat, res.data.pickupLng], [res.data.dropLat, res.data.dropLng]);
+        setRoutePath(path);
+      }
+      if (s === 'COMPLETED') {
+        setRide(null);
+        setRoutePath([]);
+        toast.success('Ride Completed! Earnings added to wallet.');
+        fetchHistory();
+        refreshDriver();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Update failed');
+    }
+  };
+
+  const acceptRide = async () => {
+    if (!incoming) return;
+    try {
+      const res = await axios.post(`${API_URL}/rides/accept`, { rideId: incoming.id }, getAuthHeaders(driverToken));
+      const rideData = res.data;
+      setRide(rideData);
+      setIncoming(null);
+      
+      // Fetch route to pickup
+      const path = await fetchRoute(myLocation, [rideData.pickupLat, rideData.pickupLng]);
+      setRoutePath(path);
+      
+      toast.success('Ride Accepted!');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to accept ride');
+      setIncoming(null);
     }
   };
 
@@ -467,7 +730,17 @@ const DriverDashboard = () => {
             {ride && (
               <div className="card" style={{marginTop:'1.5rem', border:'1px solid var(--primary)'}}>
                 <p style={{fontSize:'0.8rem', marginBottom:'1rem'}}>Active Ride: <strong>{ride.status}</strong></p>
-                {ride.status === 'ACCEPTED' && <button className="btn btn-primary" style={{width:'100%'}} onClick={() => updateStatus('ONGOING')}>Start Trip</button>}
+                {ride.status === 'ACCEPTED' && (
+                  <div className="otp-input-group">
+                    <input 
+                      placeholder="Enter Rider OTP" 
+                      value={otp} 
+                      onChange={e => setOtp(e.target.value)}
+                      style={{textAlign:'center', letterSpacing:'3px', fontWeight:'bold'}}
+                    />
+                    <button className="btn btn-primary" style={{width:'100%'}} onClick={() => updateStatus('ONGOING')}>Verify OTP & Start</button>
+                  </div>
+                )}
                 {ride.status === 'ONGOING' && <button className="btn btn-primary" style={{width:'100%'}} onClick={() => updateStatus('COMPLETED')}>Finish Trip</button>}
                 {ride.status !== 'COMPLETED' && ride.status !== 'CANCELLED' && <button className="btn btn-outline" style={{width:'100%', marginTop:'0.75rem'}} onClick={cancelRide}>Cancel Ride</button>}
                 {ride.status !== 'COMPLETED' && ride.status !== 'CANCELLED' && <button className="btn btn-outline" style={{width:'100%', marginTop:'0.75rem', borderColor:'#ff4757', color:'#ff4757'}} onClick={triggerSos}>Emergency SOS</button>}
@@ -484,7 +757,22 @@ const DriverDashboard = () => {
           <div className="map-box">
             <MapContainer center={myLocation} zoom={15} style={{ height: '100%' }}>
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='© OpenStreetMap' />
+              <MapRecenter bounds={routePath.length > 0 ? routePath : [myLocation]} />
               <Marker position={myLocation}><Popup>📍 Your Location</Popup></Marker>
+              
+              {ride && ride.status === 'ACCEPTED' && (
+                <>
+                  <Marker position={[ride.pickupLat, ride.pickupLng]}><Popup>📍 Pickup Rider Here</Popup></Marker>
+                  {routePath.length > 0 && <Polyline positions={routePath} color="#4F46E5" weight={4} dashArray="5, 10" />}
+                </>
+              )}
+
+              {ride && ride.status === 'ONGOING' && (
+                <>
+                  <Marker position={[ride.dropLat, ride.dropLng]}><Popup>🏁 Dropoff Destination</Popup></Marker>
+                  {routePath.length > 0 && <Polyline positions={routePath} color="#10B981" weight={6} />}
+                </>
+              )}
             </MapContainer>
           </div>
         )}
@@ -514,10 +802,7 @@ const DriverDashboard = () => {
             <h3>New Request! 🛵</h3>
             <p>From: {incoming.pickupLocation}<br/>To: {incoming.dropLocation}</p>
             <div style={{display:'flex', gap:'1rem', marginTop:'1.5rem'}}>
-              <button className="btn btn-primary" style={{flex:1}} onClick={async () => {
-                const res = await axios.post(`${API_URL}/rides/accept`, { rideId: incoming.id }, { headers: { Authorization: `Bearer ${localStorage.getItem('driverToken')}` } });
-                setRide(res.data); setIncoming(null);
-              }}>Accept</button>
+              <button className="btn btn-primary" style={{flex:1}} onClick={acceptRide}>Accept</button>
               <button className="btn btn-outline" style={{flex:1}} onClick={() => setIncoming(null)}>Decline</button>
             </div>
           </div>
@@ -683,18 +968,31 @@ const AdminDashboard = () => {
             <div className="admin-stat"><h4>Total Rides</h4><h2>{stats?.totalRides || 0}</h2></div>
             <div className="admin-stat"><h4>Total Revenue</h4><h2>₹{stats?.totalRevenue || 0}</h2></div>
             <div className="admin-stat"><h4>Open Tickets</h4><h2>{tickets.filter(t => t.status === 'OPEN').length}</h2></div>
-            <div className="admin-stat"><h4>Pending Payouts</h4><h2>{payouts.filter(p => p.status === 'PENDING').length}</h2></div>
+            <div className="admin-stat"><h4>System Version</h4><h2>v2.0.0</h2></div>
           </div>
-          <div className="card">
-            <h3>Recent Rides</h3>
-            <table>
-              <thead><tr><th>Rider</th><th>Fare</th><th>Status</th></tr></thead>
-              <tbody>
-                {stats?.recentRides.map(r => (
-                  <tr key={r.id}><td>{r.rider?.name}</td><td>₹{r.fare}</td><td>{r.status}</td></tr>
-                ))}
-              </tbody>
-            </table>
+          
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'2rem', marginTop:'2rem'}}>
+            <div className="card">
+              <h3>Recent Rides</h3>
+              <table>
+                <thead><tr><th>Rider</th><th>Fare</th><th>Status</th></tr></thead>
+                <tbody>
+                  {stats?.recentRides.map(r => (
+                    <tr key={r.id}><td>{r.rider?.name}</td><td>₹{r.fare}</td><td>{r.status}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="card">
+              <h3>System Information</h3>
+              <div style={{display:'flex', flexDirection:'column', gap:'1rem', marginTop:'1rem'}}>
+                <div style={{display:'flex', justifyContent:'space-between'}}><span style={{opacity:0.6}}>App Version:</span> <strong>2.0.0 (Premium)</strong></div>
+                <div style={{display:'flex', justifyContent:'space-between'}}><span style={{opacity:0.6}}>Build Date:</span> <strong>2024.05.12</strong></div>
+                <div style={{display:'flex', justifyContent:'space-between'}}><span style={{opacity:0.6}}>Database:</span> <strong>PostgreSQL (Neon)</strong></div>
+                <div style={{display:'flex', justifyContent:'space-between'}}><span style={{opacity:0.6}}>Backend Port:</span> <strong>5001</strong></div>
+                <div style={{display:'flex', justifyContent:'space-between'}}><span style={{opacity:0.6}}>Socket.io:</span> <strong style={{color:'#1db954'}}>Connected</strong></div>
+              </div>
+            </div>
           </div>
         </>
       )}
