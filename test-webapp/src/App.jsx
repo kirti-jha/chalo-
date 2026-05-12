@@ -94,14 +94,6 @@ const AuthPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // --- BYPASS LOGIN FOR ADMIN ---
-      if (role === 'admin' && formData.email === 'admin@chalo.com') {
-        localStorage.setItem('adminToken', 'bypass_token');
-        localStorage.setItem('adminUser', JSON.stringify({ name: 'Bypass Admin', email: 'admin@chalo.com' }));
-        navigate('/admin-dashboard');
-        return;
-      }
-
       const endpoint = isLogin ? `/auth/${role}/login` : `/auth/${role}/register`;
       const res = await axios.post(`${API_URL}${endpoint}`, formData);
       const tokenKey = role === 'rider' ? 'riderToken' : role === 'driver' ? 'driverToken' : 'adminToken';
@@ -125,7 +117,7 @@ const AuthPage = () => {
         <p style={{marginBottom:'2rem', opacity:0.6}}>{isLogin ? `Login as ${role.toUpperCase()}` : `Create a ${role.toUpperCase()} account`}</p>
         <form onSubmit={handleSubmit}>
           {!isLogin && <input placeholder="Full Name" onChange={e => setFormData({...formData, name: e.target.value})} />}
-          <input placeholder="Email Address" type="email" onChange={e => setFormData({...formData, email: e.target.value})} />
+          <input placeholder={isLogin ? "Email or any demo ID" : "Email Address"} onChange={e => setFormData({...formData, email: e.target.value})} />
           <input placeholder="Password" type="password" onChange={e => setFormData({...formData, password: e.target.value})} />
           {!isLogin && <input placeholder="Phone Number" onChange={e => setFormData({...formData, phone: e.target.value})} />}
           {!isLogin && role === 'driver' && <input placeholder="Driving License Number" onChange={e => setFormData({...formData, licenseNumber: e.target.value})} />}

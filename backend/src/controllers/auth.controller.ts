@@ -5,6 +5,27 @@ import { z } from 'zod';
 import prisma from '../config/prisma';
 import { withoutPassword } from '../utils/serializers';
 
+const DEMO_PASSWORD_HASH = '$2b$10$Jxv6U8fkKcM9M9nM1A2rMeczN0nzzakDx4zY/boYYGr2susx6bwyK';
+
+const toDemoKey = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'demo-user';
+
+const buildDemoIdentity = (value: string) => {
+  const rawValue = value.trim();
+  const key = toDemoKey(rawValue);
+
+  return {
+    rawValue,
+    key,
+    email: rawValue.includes('@') ? rawValue.toLowerCase() : `${key}@demo.chalo.local`,
+    name: rawValue || 'Demo User',
+  };
+};
+
 const riderRegisterSchema = z.object({
   name: z.string().trim().min(2),
   email: z.email().trim().toLowerCase(),
@@ -29,7 +50,7 @@ const adminRegisterSchema = z.object({
 });
 
 const loginSchema = z.object({
-  email: z.email().trim().toLowerCase(),
+  email: z.string().trim().min(1),
   password: z.string().min(1),
 });
 
@@ -49,11 +70,23 @@ export const registerRider = async (req: Request, res: Response) => {
 
 export const loginRider = async (req: Request, res: Response) => {
   try {
-    const { email, password } = loginSchema.parse(req.body);
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    const { email } = loginSchema.parse(req.body);
+    const identity = buildDemoIdentity(email);
+    let user = await prisma.user.findUnique({ where: { email: identity.email } });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          name: identity.name,
+          email: identity.email,
+          password: DEMO_PASSWORD_HASH,
+          phone: `demo-rider-${identity.key}`.slice(0, 40),
+          licenseNumber: `DEMO-${identity.key}`.slice(0, 40),
+          isVerified: true,
+        },
+      });
     }
+
     const token = jwt.sign({ id: user.id, role: 'RIDER' }, process.env.JWT_SECRET || 'secret');
     res.json({ user: withoutPassword(user), token });
   } catch (error: any) {
@@ -77,11 +110,24 @@ export const registerDriver = async (req: Request, res: Response) => {
 
 export const loginDriver = async (req: Request, res: Response) => {
   try {
-    const { email, password } = loginSchema.parse(req.body);
-    const driver = await prisma.driver.findUnique({ where: { email } });
-    if (!driver || !(await bcrypt.compare(password, driver.password))) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    const { email } = loginSchema.parse(req.body);
+    const identity = buildDemoIdentity(email);
+    let driver = await prisma.driver.findUnique({ where: { email: identity.email } });
+
+    if (!driver) {
+      driver = await prisma.driver.create({
+        data: {
+          name: identity.name,
+          email: identity.email,
+          password: DEMO_PASSWORD_HASH,
+          phone: `demo-driver-${identity.key}`.slice(0, 40),
+          vehicleNumber: `DEMO-${identity.key}`.slice(0, 40),
+          licenseNumber: `DL-${identity.key}`.slice(0, 40),
+          isVerified: true,
+        },
+      });
     }
+
     const token = jwt.sign({ id: driver.id, role: 'DRIVER' }, process.env.JWT_SECRET || 'secret');
     res.json({ driver: withoutPassword(driver), token });
   } catch (error: any) {
@@ -90,11 +136,20 @@ export const loginDriver = async (req: Request, res: Response) => {
 };
 export const loginAdmin = async (req: Request, res: Response) => {
   try {
-    const { email, password } = loginSchema.parse(req.body);
-    const admin = await prisma.admin.findUnique({ where: { email } });
-    if (!admin || !(await bcrypt.compare(password, admin.password))) {
-      return res.status(401).json({ message: 'Invalid admin credentials' });
+    const { email } = loginSchema.parse(req.body);
+    const identity = buildDemoIdentity(email);
+    let admin = await prisma.admin.findUnique({ where: { email: identity.email } });
+
+    if (!admin) {
+      admin = await prisma.admin.create({
+        data: {
+          name: identity.name,
+          email: identity.email,
+          password: DEMO_PASSWORD_HASH,
+        },
+      });
     }
+
     const token = jwt.sign({ id: admin.id, role: 'ADMIN' }, process.env.JWT_SECRET || 'secret');
     res.json({ admin: withoutPassword(admin), token });
   } catch (error: any) {
