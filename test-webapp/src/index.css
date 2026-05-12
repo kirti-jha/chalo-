@@ -153,7 +153,12 @@ input {
 input:focus { border-color: var(--primary); background: rgba(255, 255, 255, 0.08); }
 
 /* Dashboards */
-.dashboard-container { display: grid; grid-template-columns: 320px 1fr; height: 100vh; }
+.leaflet-marker-icon {
+  transition: all 2s linear !important;
+}
+
+.dashboard-container {
+ display: grid; grid-template-columns: 320px 1fr; height: 100vh; }
 
 .sidebar {
   background: rgba(15, 23, 42, 0.9);
@@ -180,7 +185,13 @@ input:focus { border-color: var(--primary); background: rgba(255, 255, 255, 0.08
   color: white;
 }
 
-.map-box { height: 100%; border-radius: 2rem; overflow: hidden; border: 1px solid var(--glass-border); }
+.map-box { 
+  height: 100%; 
+  border-radius: 2rem; 
+  overflow: hidden; 
+  border: 1px solid var(--glass-border); 
+  position: relative; /* Needed for absolute overlays like OTP card */
+}
 
 /* Status Badges */
 .status-badge {
@@ -282,3 +293,146 @@ td:last-child { border-radius: 0 0.8rem 0.8rem 0; }
   text-align: center;
   box-shadow: 0 0 50px rgba(255, 221, 0, 0.2);
 }
+/* Searching Overlay */
+.searching-overlay {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(2, 6, 23, 0.9);
+  backdrop-filter: blur(10px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  border-radius: 2rem;
+}
+
+.searching-content { text-align: center; max-width: 400px; padding: 2rem; }
+
+.spinner {
+  width: 60px; height: 60px;
+  border: 4px solid rgba(255, 221, 0, 0.1);
+  border-top: 4px solid var(--primary);
+  border-radius: 50%;
+  margin: 0 auto 2rem;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.progress-container {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  margin: 2rem 0;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--primary);
+  transition: width 1s linear;
+}
+
+/* OTP Card */
+.otp-card {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(20px);
+  padding: 1.5rem 3rem;
+  border-radius: 2rem;
+  border: 1px solid var(--primary);
+  text-align: center;
+  z-index: 100;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.otp-card p { margin: 0 0 0.5rem; font-size: 0.8rem; opacity: 0.6; }
+.otp-code { font-size: 2.5rem; font-weight: 800; color: var(--primary); letter-spacing: 5px; }
+
+.otp-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* Responsiveness */
+@media (max-width: 900px) {
+  .dashboard-container {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+  }
+  
+  .sidebar {
+    height: auto;
+    padding: 1.5rem;
+    border-right: none;
+    border-bottom: 1px solid var(--glass-border);
+  }
+  
+  .main-content {
+    padding: 1rem;
+    height: 500px; /* Fixed height for map on mobile */
+  }
+
+  .card {
+    padding: 1.5rem;
+  }
+
+  .otp-card {
+    width: 90%;
+    padding: 1rem;
+  }
+
+  .otp-code {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .sidebar h2 { font-size: 1.5rem; }
+  .btn { padding: 0.7rem 1rem; font-size: 0.9rem; }
+  .main-content { height: 400px; }
+  
+  nav {
+    flex-direction: row !important;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+  }
+  
+  nav .btn {
+    white-space: nowrap;
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* Admin Dashboard */
+.admin-dashboard .sidebar { background: #0f172a; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; }
+.stat-card { display: flex; flex-direction: column; justify-content: center; min-height: 120px; }
+.stat-card p { font-size: 0.8rem; opacity: 0.5; margin-bottom: 0.5rem; }
+.stat-card h2 { font-size: 2rem; font-weight: 800; margin: 0; }
+.trend { font-size: 0.7rem; color: #1db954; margin-top: 0.5rem; }
+
+.admin-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+.admin-table th { text-align: left; padding: 1rem; font-size: 0.8rem; opacity: 0.4; border-bottom: 1px solid var(--glass-border); }
+.admin-table td { padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.02); font-size: 0.9rem; }
+.admin-table tr:hover { background: rgba(255,255,255,0.02); }
+
+.status-pill { padding: 0.3rem 0.8rem; border-radius: 100px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+.status-pill.searching { background: rgba(255, 221, 0, 0.1); color: var(--primary); }
+.status-pill.accepted { background: rgba(79, 70, 229, 0.1); color: #4F46E5; }
+.status-pill.ongoing { background: rgba(29, 185, 84, 0.1); color: #1db954; }
+.status-pill.completed { background: rgba(29, 185, 84, 0.1); color: #1db954; }
+.status-pill.cancelled { background: rgba(255, 71, 87, 0.1); color: #ff4757; }
+
+.badge-count { background: #ff4757; color: white; font-size: 0.6rem; padding: 2px 6px; border-radius: 10px; margin-left: 5px; }

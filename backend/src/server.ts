@@ -17,7 +17,19 @@ const app = express();
 const server = http.createServer(app);
 const isServerless = Boolean(process.env.VERCEL);
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'platform-tenantid'],
+  credentials: true
+}));
+
+// Request Logger
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
 app.use(express.json());
 
 if (!isServerless) {
