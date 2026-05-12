@@ -72,7 +72,7 @@ export const createRide = async (req: AuthRequest, res: Response) => {
     });
 
     // Emit request to all nearby drivers
-    drivers.forEach((driver) => {
+    drivers.forEach((driver: any) => {
       socketService.emitToDriver(driver.id, 'newRideRequest', ride);
     });
 

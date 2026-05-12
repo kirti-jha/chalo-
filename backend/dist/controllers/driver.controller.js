@@ -16,7 +16,7 @@ export const toggleOnlineStatus = async (req, res) => {
             const activeRides = await prisma.ride.findMany({
                 where: { status: 'SEARCHING' }
             });
-            activeRides.forEach(ride => {
+            activeRides.forEach((ride) => {
                 socketService.emitToDriver(driverId, 'newRideRequest', ride);
             });
         }

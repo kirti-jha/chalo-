@@ -1,16 +1,19 @@
-import { PrismaClient } from '@prisma/client';
+import prismaClientPkg from '@prisma/client';
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
+const { PrismaClient } = prismaClientPkg;
+
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is not configured');
 }
 
 const globalForPrisma = globalThis as typeof globalThis & {
-  prisma?: PrismaClient;
+  prisma?: PrismaClientType;
 };
 
 const createPrismaClient = () => {
