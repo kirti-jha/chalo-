@@ -17,11 +17,20 @@
       "dest": "api/index.ts"
     },
     {
-      "handle": "filesystem"
+      "src": "/assets/(.*)",
+      "dest": "/test-webapp/assets/$1"
+    },
+    {
+      "src": "/favicon.svg",
+      "dest": "/test-webapp/favicon.svg"
+    },
+    {
+      "src": "/icons.svg",
+      "dest": "/test-webapp/icons.svg"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/test-webapp/index.html"
     }
   ]
 }
